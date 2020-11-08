@@ -1,59 +1,100 @@
 from time import sleep
-from requests import post, get
+from requests import post
 
 
-class RoboepicsClient():
-    def __init__(self, problem_enter_id):
-        self._fusion_base_url = 'https://fusion.roboepics.com'
-        self._roboepics_api_base_url = 'https://api.roboepics.com'
-        self._client_id = '7126a051-baea-4fe1-bdf8-fde2fdb31f97'
+class AuthorizationError(Exception):
+    pass
+
+
+class RequestError(Exception):
+    pass
+
+
+class RoboEpicsClient:
+    fusionauth_base_url = 'https://fusion.roboepics.com'
+    roboepics_api_base_url = 'https://api.roboepics.com'
+    client_id = '7126a051-baea-4fe1-bdf8-fde2fdb31f97'
+    problem_enter_id = None
+
+    def __init__(self, problem_enter_id: int, roboepics_api_base_url: str = None, fusionauth_base_url: str = None,
+                 client_id: str = None, auto_authorize: bool = True):
+        self.problem_enter_id = problem_enter_id
+
+        if roboepics_api_base_url is not None:
+            self.roboepics_api_base_url = roboepics_api_base_url
+
+        if fusionauth_base_url is not None:
+            self.fusionauth_base_url = fusionauth_base_url
+
+        if client_id is not None:
+            self.client_id = client_id
+
         self._device_code = None
         self._access_token = None
-        self._problem_enter_id = None
-        self._header = {'Authorization': None}
-        self.device_authorize()
+
+        if auto_authorize:
+            self.device_authorize()
+
+    @property
+    def header(self):
+        return {'Authorization': "Bearer " + self._access_token}
 
     def device_authorize(self):
-        response = post(self._fusion_base_url + '/oauth2/device_authorize',
-                        data={'client_id': self._client_id, 'scope': 'offline_access'})
-        if response.status_code == 200:
-            body = response.json()
-            self._device_code = body['user_code']
-            print("URL : " + self._fusion_base_url + "/oauth2/device?client_id=" +
-                  self._client_id, " Code : "+self._device_code)
+        response = post(self.fusionauth_base_url + '/oauth2/device_authorize',
+                        data={'client_id': self.client_id, 'scope': 'offline_access'})
+        if response.status_code != 200:
+            raise AuthorizationError
 
-            response = post(self._fusion_base_url + '/oauth2/token', data={
-                'client_id': self._client_id, 'device_code': self._device_code, 'grant_type': 'urn:ietf:params:oauth:grant-type:device_code'
-            })
-            if response.status_code == 200:
-                body = response.json()
-                while True:
-                    if 'access_token' in body:
-                        self._access_token = body['access_token']
-                        self._header['Authorization'] = 'Bearer ' + \
-                            self._access_token
-                        print("Successful Login")
-                        break
+        body = response.json()
+        self._device_code = body['device_code']
+        interval = body['interval']
+        print("URL: %s, Code: %s" % (f"{self.fusionauth_base_url}/oauth2/device?client_id={self.client_id}", body['user_code']))
 
-    def commit(self):
-        response = post(self._roboepics_api_base_url+"/problem/enter/" +
-                        self._problem_enter_id+"/commit", data={}, headers=self._header)
-        if response.status_code == 200:
-            body = response.json()
-            return body['refrence']
+        while True:
+            sleep(interval)
+            response = post(self.fusionauth_base_url + '/oauth2/token',
+                            data={'client_id': self.client_id, 'device_code': self._device_code,
+                                  'grant_type': 'urn:ietf:params:oauth:grant-type:device_code'})
+            if response.status_code != 200:
+                raise AuthorizationError
 
-    def submission(self, path):
-        refrence = self.commit()
-        response = post(self._roboepics_api_base_url+"/problem/enter/"+self._problem_enter_id+"/upload", data={}, headers=self._header})
-        if response.status_code == 200:
             body = response.json()
-            s3_url = body['url']
-            with open(path, 'rb') as f:
-                s3_response = post(url=s3_url, files={'file': (path, f)})
-                if s3_response.status_code == 204:
-                    response = post(self._roboepics_api_base_url+"/problem/submission", data={
-                        "refrence": refrence,
-                        "problem_enter_id": self._problem_enter_id
-                    })
-                    if response.status_code == 200:
-                        return response.json()
+            if 'access_token' in body:
+                self._access_token = body['access_token']
+                print("Successful Login")
+                break
+
+    def commit(self) -> str:
+        response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/commit", headers=self.header)
+        if response.status_code != 200:
+            raise RequestError
+
+        return response.json()['reference']
+
+    def submission(self, path: str, reference: str = None) -> int:
+        if reference is None:
+            reference = self.commit()
+
+        # Request an S3 pre-signed url to upload result file
+        response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/upload",
+                        data={'filename': path.split('/')[-1]}, headers=self.header)
+        if response.status_code != 200:
+            raise RequestError
+        body = response.json()
+
+        # Upload the result file to S3
+        s3_url = body['url']
+        with open(path, 'rb') as f:
+            s3_response = post(url=s3_url, files={'file': (path, f)})
+            if s3_response.status_code != 204:
+                raise RequestError
+
+        # Create a new submission
+        response = post(self.roboepics_api_base_url + "/problem/submission", data={
+            "reference": reference,
+            "problem_enter_id": self.problem_enter_id
+        })
+        if response.status_code != 200:
+            raise RequestError
+
+        return response.json()['id']
