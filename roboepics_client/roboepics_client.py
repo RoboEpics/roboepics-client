@@ -10,6 +10,14 @@ class RequestError(Exception):
     pass
 
 
+def needs_authorization(func):
+    def inner(self):
+        if self._access_token is None:
+            raise RequestError("You should call `authenticate` method before using the client!")
+        func(self)
+    return inner
+
+
 class RoboEpicsClient:
     fusionauth_base_url = 'https://fusion.roboepics.com'
     roboepics_api_base_url = 'https://api.roboepics.com'
@@ -17,7 +25,7 @@ class RoboEpicsClient:
     problem_enter_id = None
 
     def __init__(self, problem_enter_id: int, roboepics_api_base_url: str = None, fusionauth_base_url: str = None,
-                 client_id: str = None, auto_authorize: bool = True):
+                 client_id: str = None, auto_authenticate: bool = True):
         self.problem_enter_id = problem_enter_id
 
         if roboepics_api_base_url is not None:
@@ -32,14 +40,14 @@ class RoboEpicsClient:
         self._device_code = None
         self._access_token = None
 
-        if auto_authorize:
-            self.device_authorize()
+        if auto_authenticate:
+            self.authenticate()
 
     @property
     def header(self):
         return {'Authorization': "Bearer " + self._access_token}
 
-    def device_authorize(self):
+    def authenticate(self):
         response = post(self.fusionauth_base_url + '/oauth2/device_authorize',
                         data={'client_id': self.client_id, 'scope': 'offline_access'})
         if response.status_code != 200:
@@ -64,6 +72,7 @@ class RoboEpicsClient:
                 print("Successful Login")
                 break
 
+    @needs_authorization
     def commit(self) -> str:
         response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/commit", headers=self.header)
         if response.status_code != 200:
@@ -71,6 +80,7 @@ class RoboEpicsClient:
 
         return response.json()['reference']
 
+    @needs_authorization
     def submission(self, path: str, reference: str = None) -> int:
         if reference is None:
             reference = self.commit()
