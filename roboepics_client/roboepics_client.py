@@ -73,8 +73,9 @@ class RoboEpicsClient:
                 break
 
     @needs_authorization
-    def commit(self) -> str:
-        response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/commit", headers=self.header)
+    def sync(self) -> str:
+        response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/sync-notebook",
+                        headers=self.header)
         if response.status_code != 200:
             raise RequestError
 
@@ -83,10 +84,10 @@ class RoboEpicsClient:
     @needs_authorization
     def submission(self, path: str, reference: str = None) -> int:
         if reference is None:
-            reference = self.commit()
+            reference = self.sync()
 
         # Request an S3 pre-signed url to upload result file
-        response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/upload",
+        response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/upload-result",
                         data={'filename': path.split('/')[-1]}, headers=self.header)
         if response.status_code != 200:
             raise RequestError
