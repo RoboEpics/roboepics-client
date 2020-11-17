@@ -108,7 +108,7 @@ class RoboEpicsClient:
             "reference": reference,
             "problem_enter": self.problem_enter_id
         }, headers=self.header)
-        if response.status_code != 200:
+        if response.status_code != 201:
             raise RequestError
 
         return response.json()['id']
