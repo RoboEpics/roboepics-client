@@ -1,4 +1,5 @@
 from time import sleep
+from functools import wraps
 from requests import post
 
 
@@ -11,10 +12,12 @@ class RequestError(Exception):
 
 
 def needs_authorization(func):
-    def inner(self):
+    @wraps(func)
+    def inner(*args, **kwargs):
+        self = args[0]
         if self._access_token is None:
             raise RequestError("You should call `authenticate` method before using the client!")
-        return func(self)
+        return func(*args, **kwargs)
     return inner
 
 
