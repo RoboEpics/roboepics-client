@@ -63,10 +63,11 @@ class RoboEpicsClient:
             response = post(self.fusionauth_base_url + '/oauth2/token',
                             data={'client_id': self.client_id, 'device_code': self._device_code,
                                   'grant_type': 'urn:ietf:params:oauth:grant-type:device_code'})
-            if response.status_code != 200:
-                raise AuthorizationError
-
+            
             body = response.json()
+            if response.status_code == 400 and body['error'] == 'invalid_request':
+                raise AuthorizationError
+            
             if 'access_token' in body:
                 self._access_token = body['access_token']
                 print("Successful Login")
