@@ -14,7 +14,7 @@ def needs_authorization(func):
     def inner(self):
         if self._access_token is None:
             raise RequestError("You should call `authenticate` method before using the client!")
-        func(self)
+        return func(self)
     return inner
 
 
