@@ -1,5 +1,5 @@
 from time import sleep
-from requests import post
+from requests import post, put
 
 
 class AuthorizationError(Exception):
@@ -76,8 +76,8 @@ class RoboEpicsClient:
     def sync(self) -> str:
         response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/sync-notebook",
                         headers=self.header)
-        if response.status_code != 200:
-            raise RequestError
+        if response.status_code != 201:
+            raise RequestError(response.text)
 
         return response.json()['reference']
 
@@ -89,23 +89,23 @@ class RoboEpicsClient:
         # Request an S3 pre-signed url to upload result file
         response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/upload-result",
                         data={'filename': path.split('/')[-1]}, headers=self.header)
-        if response.status_code != 200:
-            raise RequestError
+        if response.status_code != 201:
+            raise RequestError(response.text)
         body = response.json()
 
         # Upload the result file to S3
         s3_url = body['url']
         with open(path, 'rb') as f:
-            s3_response = post(url=s3_url, files={'file': (path, f)})
+            s3_response = put(s3_url, files={'file': (path, f)})
             if s3_response.status_code != 204:
-                raise RequestError
+                raise RequestError(s3_response.text)
 
         # Create a new submission
         response = post(self.roboepics_api_base_url + "/problem/submission", data={
             "reference": reference,
             "problem_enter_id": self.problem_enter_id
         })
-        if response.status_code != 200:
-            raise RequestError
+        if response.status_code != 201:
+            raise RequestError(response.text)
 
         return response.json()['id']
