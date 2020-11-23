@@ -1,4 +1,5 @@
 from time import sleep
+from functools import wraps
 from requests import post, put
 
 
@@ -11,10 +12,10 @@ class RequestError(Exception):
 
 
 def needs_authorization(func):
-    def inner(self):
+    def inner(self, *args, **kwargs):
         if self._access_token is None:
             raise RequestError("You should call `authenticate` method before using the client!")
-        func(self)
+        return func(self, *args, **kwargs)
     return inner
 
 
@@ -24,8 +25,9 @@ class RoboEpicsClient:
     client_id = '7126a051-baea-4fe1-bdf8-fde2fdb31f97'
     problem_enter_id = None
 
-    def __init__(self, problem_enter_id: int, roboepics_api_base_url: str = None, fusionauth_base_url: str = None,
+    def __init__(self, problem_id: int, problem_enter_id: int, roboepics_api_base_url: str = None, fusionauth_base_url: str = None,
                  client_id: str = None, auto_authenticate: bool = True):
+        self.problem_id = problem_id
         self.problem_enter_id = problem_enter_id
 
         if roboepics_api_base_url is not None:
@@ -63,10 +65,11 @@ class RoboEpicsClient:
             response = post(self.fusionauth_base_url + '/oauth2/token',
                             data={'client_id': self.client_id, 'device_code': self._device_code,
                                   'grant_type': 'urn:ietf:params:oauth:grant-type:device_code'})
-            if response.status_code != 200:
-                raise AuthorizationError
 
             body = response.json()
+            if response.status_code == 400 and body['error'] == 'invalid_request':
+                raise AuthorizationError
+
             if 'access_token' in body:
                 self._access_token = body['access_token']
                 print("Successful Login")
@@ -97,14 +100,14 @@ class RoboEpicsClient:
         s3_url = body['url']
         with open(path, 'rb') as f:
             s3_response = put(s3_url, files={'file': (path, f)})
-            if s3_response.status_code != 204:
+            if s3_response.status_code != 200:
                 raise RequestError(s3_response.text)
 
         # Create a new submission
-        response = post(self.roboepics_api_base_url + "/problem/submission", data={
+        response = post(self.roboepics_api_base_url + f"/problem/{self.problem_id}/submissions", data={
             "reference": reference,
-            "problem_enter_id": self.problem_enter_id
-        })
+            "problem_enter": self.problem_enter_id
+        }, headers=self.header)
         if response.status_code != 201:
             raise RequestError(response.text)
 
