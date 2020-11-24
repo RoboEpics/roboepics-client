@@ -99,7 +99,7 @@ class RoboEpicsClient:
         # Upload the result file to S3
         s3_url = body['url']
         with open(path, 'rb') as f:
-            s3_response = put(s3_url, files={'file': (path, f)})
+            s3_response = put(s3_url, data=f)
             if s3_response.status_code != 200:
                 raise RequestError(s3_response.text)
 
