@@ -1,5 +1,4 @@
 from time import sleep
-from functools import wraps
 from requests import post, put
 
 
@@ -23,6 +22,8 @@ class RoboEpicsClient:
     fusionauth_base_url = 'https://fusion.roboepics.com'
     roboepics_api_base_url = 'https://api.roboepics.com'
     client_id = '7126a051-baea-4fe1-bdf8-fde2fdb31f97'
+
+    problem_id = None
     problem_enter_id = None
 
     def __init__(self, problem_id: int, problem_enter_id: int, roboepics_api_base_url: str = None, fusionauth_base_url: str = None,
@@ -58,7 +59,7 @@ class RoboEpicsClient:
         body = response.json()
         self._device_code = body['device_code']
         interval = body['interval']
-        print("URL: %s, Code: %s" % (f"{self.fusionauth_base_url}/oauth2/device?client_id={self.client_id}", body['user_code']))
+        print(f"URL: {self.fusionauth_base_url}/oauth2/device?client_id={self.client_id}&user_code={body['user_code']}")
 
         while True:
             sleep(interval)
