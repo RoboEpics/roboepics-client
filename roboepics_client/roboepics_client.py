@@ -1,5 +1,6 @@
+from os import mkdir
 from time import sleep
-from requests import post, put
+from requests import get, post, put
 
 
 class AuthorizationError(Exception):
@@ -75,6 +76,29 @@ class RoboEpicsClient:
                 self._access_token = body['access_token']
                 print("Successful Login")
                 break
+
+    @needs_authorization
+    def download_dataset(self, path: str = None):
+        response = get(f"{self.roboepics_api_base_url}/problem/{self.problem_id}", headers=self.header)
+        if response.status_code != 200:
+            raise RequestError(response.text)
+
+        datas = response.json()['datasets']
+
+        result = {}
+        for data in datas:
+            paths = []
+            data_directory = '/'.join((path, data['dataset_path']))
+            mkdir(data_directory)
+            for file in data['file_set']:
+                response = get(file['url'], stream=True)
+                p = '/'.join((data_directory, file['file_name']))
+                with open(p, 'wb') as fd:
+                    for chunk in response.iter_content(chunk_size=128):
+                        fd.write(chunk)
+                paths.append(p)
+            result[data['dataset_path']] = paths
+        return result
 
     @needs_authorization
     def sync(self) -> str:

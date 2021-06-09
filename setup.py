@@ -1,9 +1,8 @@
- 
 from setuptools import setup, find_packages
 
 setup(
     name="roboepics_client",
-    version="0.1",
+    version="0.2",
     packages=find_packages(),
-    install_requires="requests==2.24.0"
+    install_requires="requests==2.25.1"
 )
