@@ -60,7 +60,7 @@ class RoboEpicsClient:
         body = response.json()
         self._device_code = body['device_code']
         interval = body['interval']
-        print(f"URL: {self.fusionauth_base_url}/oauth2/device?client_id={self.client_id}&user_code={body['user_code']}")
+        print(f"Open this URL and confirm your login: {self.fusionauth_base_url}/oauth2/device?client_id={self.client_id}&user_code={body['user_code']}")
 
         while True:
             sleep(interval)
@@ -74,8 +74,9 @@ class RoboEpicsClient:
 
             if 'access_token' in body:
                 self._access_token = body['access_token']
-                print("Successful Login")
                 break
+
+        print("Login successful.")
 
     @needs_authorization
     def download_dataset(self, path: str = None):
@@ -98,6 +99,7 @@ class RoboEpicsClient:
                         fd.write(chunk)
                 paths.append(p)
             result[data['dataset_path']] = paths
+        print("Datasets are downloaded successfully.")
         return result
 
     @needs_authorization
@@ -110,20 +112,20 @@ class RoboEpicsClient:
         return response.json()['reference']
 
     @needs_authorization
-    def submission(self, path: str, reference: str = None) -> int:
+    def submit(self, result_file_path: str, reference: str = None) -> int:
         if reference is None:
             reference = self.sync()
 
         # Request an S3 pre-signed url to upload result file
         response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/upload-result",
-                        data={'filename': path.split('/')[-1]}, headers=self.header)
+                        data={'filename': result_file_path.split('/')[-1]}, headers=self.header)
         if response.status_code != 201:
             raise RequestError(response.text)
         body = response.json()
 
         # Upload the result file to S3
         s3_url = body['url']
-        with open(path, 'rb') as f:
+        with open(result_file_path, 'rb') as f:
             s3_response = put(s3_url, data=f)
             if s3_response.status_code != 200:
                 raise RequestError(s3_response.text)
@@ -135,5 +137,7 @@ class RoboEpicsClient:
         }, headers=self.header)
         if response.status_code != 201:
             raise RequestError(response.text)
+
+        print("Submission was successfully sent.")
 
         return response.json()['id']
