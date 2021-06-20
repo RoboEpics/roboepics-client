@@ -79,7 +79,7 @@ class RoboEpicsClient:
         print("Login successful.")
 
     @needs_authorization
-    def download_dataset(self, path: str = None):
+    def download_dataset(self, download_destination_path: str = '/data'):
         response = get(f"{self.roboepics_api_base_url}/problem/{self.problem_id}", headers=self.header)
         if response.status_code != 200:
             raise RequestError(response.text)
@@ -89,7 +89,7 @@ class RoboEpicsClient:
         result = {}
         for data in datas:
             paths = []
-            data_directory = '/'.join((path, data['dataset_path']))
+            data_directory = '/'.join((download_destination_path, data['dataset_path']))
             mkdir(data_directory)
             for file in data['file_set']:
                 response = get(file['url'], stream=True)
