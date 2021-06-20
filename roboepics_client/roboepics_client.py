@@ -1,4 +1,5 @@
-from os import mkdir
+from os import mkdir, path
+from shutil import make_archive
 from time import sleep
 from requests import get, post, put
 
@@ -108,6 +109,29 @@ class RoboEpicsClient:
                         headers=self.header)
         if response.status_code != 201:
             raise RequestError(response.text)
+
+        return response.json()['reference']
+
+    @needs_authorization
+    def commit(self, directory: str, message: str = None, clean_repo: bool = False, submit: bool = False) -> str:
+        if not path.isdir(directory):
+            raise ValueError("Invalid directory path!")
+
+        # Create an archive from the code directory
+        make_archive('code', 'zip', directory)
+
+        # Upload the zip file
+        response = post(self.roboepics_api_base_url + f"/problem/enter/{self.problem_enter_id}/upload", data={
+            "message": message,
+            "clean_repo": clean_repo,
+            "submit": submit
+        }, files={
+            "file": open('code.zip', 'rb')
+        }, headers=self.header)
+        if response.status_code != 201:
+            raise RequestError(response.text)
+
+        print("Directory successfully committed.")
 
         return response.json()['reference']
 
