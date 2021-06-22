@@ -1,4 +1,5 @@
-from os import mkdir, path
+from os import path
+from pathlib import Path
 from shutil import make_archive
 from time import sleep
 from requests import get, post, put
@@ -90,8 +91,8 @@ class RoboEpicsClient:
         result = {}
         for data in datas:
             paths = []
-            data_directory = '/'.join((download_destination_path, data['dataset_path']))
-            mkdir(data_directory)
+            data_directory = '/'.join((download_destination_path, data['dataset_path'], str(data['version'])))
+            Path(data_directory).mkdir(parents=True, exist_ok=True)
             for file in data['file_set']:
                 response = get(file['url'], stream=True)
                 p = '/'.join((data_directory, file['file_name']))
