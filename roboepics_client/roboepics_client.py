@@ -156,9 +156,8 @@ class RoboEpicsClient:
                 raise RequestError(s3_response.text)
 
         # Create a new submission
-        response = post(self.roboepics_api_base_url + f"/problem/{self.problem_id}/submissions", data={
-            "reference": reference,
-            "problem_enter": self.problem_enter_id
+        response = post(self.roboepics_api_base_url + f"/problem/enter/{self.problem_enter_id}/submissions", data={
+            "reference": reference
         }, headers=self.header)
         if response.status_code != 201:
             raise RequestError(response.text)
