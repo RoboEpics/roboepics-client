@@ -4,5 +4,5 @@ setup(
     name="roboepics_client",
     version="0.3",
     packages=find_packages(),
-    install_requires="requests==2.25.1"
+    install_requires=["wheel", "requests"]
 )
