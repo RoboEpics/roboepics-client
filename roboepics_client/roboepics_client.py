@@ -137,26 +137,30 @@ class RoboEpicsClient:
         return response.json()['reference']
 
     @needs_authorization
-    def submit(self, result_file_path: str, reference: str = None) -> int:
-        if reference is None:
-            reference = self.sync()
-
+    def upload_result_file(self, file_path: str):
         # Request an S3 pre-signed url to upload result file
         response = post(f"{self.roboepics_api_base_url}/problem/enter/{str(self.problem_enter_id)}/upload-result",
-                        data={'filename': result_file_path.split('/')[-1]}, headers=self.header)
+                        data={'filename': file_path.split('/')[-1]}, headers=self.header)
         if response.status_code != 201:
             raise RequestError(response.text)
         body = response.json()
 
         # Upload the result file to S3
         s3_url = body['url']
-        with open(result_file_path, 'rb') as f:
+        with open(file_path, 'rb') as f:
             s3_response = put(s3_url, data=f)
             if s3_response.status_code != 200:
                 raise RequestError(s3_response.text)
 
+    @needs_authorization
+    def submit(self, result_file_path: str, reference: str = None) -> int:
+        if reference is None:
+            reference = self.sync()
+
+        self.upload_result_file(result_file_path)
+
         # Create a new submission
-        response = post(self.roboepics_api_base_url + f"/problem/enter/{self.problem_enter_id}/submissions", data={
+        response = post(f"{self.roboepics_api_base_url}/problem/enter/{self.problem_enter_id}/submissions", data={
             "reference": reference
         }, headers=self.header)
         if response.status_code != 201:
